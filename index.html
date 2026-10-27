@@ -1,0 +1,326 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyTask - Pengingat Tugas</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #fff7fb;
+  color: #51465b;
+}
+header {
+  background: #e8dafa;
+  padding: 24px 18px;
+  border-radius: 0 0 25px 25px;
+}
+header h1 { margin: 0 0 8px; color: #76549b; }
+header p { margin: 0; }
+main { max-width: 600px; margin: auto; padding: 16px; }
+.card {
+  background: white;
+  padding: 17px;
+  margin-bottom: 16px;
+  border-radius: 18px;
+  box-shadow: 0 3px 12px #8d70901a;
+}
+h2 { font-size: 18px; margin-top: 0; }
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin: 6px 0;
+  border-radius: 10px;
+  font-size: 15px;
+}
+input { border: 1px solid #e1d5eb; }
+button {
+  border: none;
+  background: #b99cde;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+button.secondary { background: #a8cbb9; }
+button.delete { background: #e9a4b4; }
+button.small { width: auto; padding: 8px 10px; }
+.task {
+  padding: 13px;
+  margin: 10px 0;
+  border-radius: 13px;
+  background: #f7f0ff;
+  overflow-wrap: anywhere;
+}
+.task.done { background: #edf8f0; opacity: .8; }
+.task.done h3 { text-decoration: line-through; }
+.task h3 { margin: 0 0 8px; font-size: 16px; }
+.task p { margin: 5px 0; font-size: 13px; }
+.actions { display: flex; gap: 7px; flex-wrap: wrap; }
+.actions button { flex: 1; min-width: 90px; }
+.notice {
+  background: #fff0c9;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+#empty { text-align: center; padding: 15px; color: #8b7d93; }
+footer { text-align: center; padding: 12px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌷 MyTask</h1>
+  <p>Catat tugasmu, atur deadline, raih prestasi!</p>
+</header>
+
+<main>
+  <div class="card">
+    <h2>📝 Tambah Tugas</h2>
+    <form id="taskForm">
+      <input id="title" placeholder="Nama tugas" required>
+      <input id="subject" placeholder="Mata pelajaran" required>
+      <label for="deadline">Tanggal dan jam pengumpulan</label>
+      <input id="deadline" type="datetime-local" required>
+      <button type="submit">＋ Simpan Tugas</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>🔔 Pengingat</h2>
+    <p id="reminder">Belum ada tugas yang mendekati deadline.</p>
+    <button class="secondary" id="notifyBtn">
+      Aktifkan Notifikasi
+    </button>
+    <p style="font-size:12px">
+      Pengingat diperiksa saat website terbuka. Izin notifikasi
+      browser diperlukan untuk menampilkan notifikasi.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>📚 Daftar Tugas</h2>
+    <p id="summary"></p>
+    <div id="tasks"></div>
+  </div>
+</main>
+
+<footer>💜 Semangat belajar! Satu tugas selesai, satu langkah maju.</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = "mytask_school_tasks_v1";
+let tasks = [];
+
+try {
+  tasks = JSON.parse(localStorage.getItem(KEY) || "[]");
+  if (!Array.isArray(tasks)) tasks = [];
+} catch {
+  tasks = [];
+}
+
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(tasks));
+}
+
+function formatDate(value) {
+  return new Date(value).toLocaleString("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+}
+
+function render() {
+  const list = $("tasks");
+  list.innerHTML = "";
+
+  const pending = tasks.filter(t => !t.done);
+  const completed = tasks.filter(t => t.done);
+
+  $("summary").textContent =
+    `${pending.length} tugas belum selesai · ${completed.length} selesai`;
+
+  const sorted = [...tasks].sort((a, b) =>
+    a.deadline.localeCompare(b.deadline)
+  );
+
+  if (!sorted.length) {
+    list.innerHTML = '<div id="empty">🌸 Belum ada tugas. Yuk, tambahkan!</div>';
+  }
+
+  sorted.forEach(task => {
+    const item = document.createElement("div");
+    item.className = "task" + (task.done ? " done" : "");
+
+    const title = document.createElement("h3");
+    title.textContent = (task.done ? "✅ " : "📌 ") + task.title;
+
+    const subject = document.createElement("p");
+    subject.textContent = "📖 " + task.subject;
+
+    const date = document.createElement("p");
+    date.textContent = "🗓️ " + formatDate(task.deadline);
+
+    const status = document.createElement("p");
+    const time = new Date(task.deadline).getTime() - Date.now();
+
+    if (task.done) {
+      status.textContent = "Status: Selesai";
+    } else if (time < 0) {
+      status.textContent = "⚠️ Deadline terlewat";
+    } else if (time < 86400000) {
+      status.textContent = "⏰ Deadline kurang dari 24 jam lagi!";
+    } else {
+      status.textContent = "Status: Belum selesai";
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    const toggle = document.createElement("button");
+    toggle.className = "secondary";
+    toggle.textContent = task.done ? "Belum selesai" : "Tandai selesai";
+    toggle.onclick = () => {
+      task.done = !task.done;
+      save();
+      render();
+    };
+
+    const remove = document.createElement("button");
+    remove.className = "delete";
+    remove.textContent = "Hapus";
+    remove.onclick = () => {
+      if (confirm("Hapus tugas ini?")) {
+        tasks = tasks.filter(t => t.id !== task.id);
+        save();
+        render();
+      }
+    };
+
+    actions.append(toggle, remove);
+    item.append(title, subject, date, status, actions);
+    list.appendChild(item);
+  });
+
+  updateReminder();
+}
+
+function updateReminder() {
+  const now = Date.now();
+  const upcoming = tasks
+    .filter(t => !t.done &&
+      new Date(t.deadline).getTime() >= now)
+    .sort((a, b) => a.deadline.localeCompare(b.deadline));
+
+  if (!upcoming.length) {
+    $("reminder").textContent =
+      "Tidak ada deadline mendatang. Kamu hebat! 🌷";
+    return;
+  }
+
+  const next = upcoming[0];
+  const hours = Math.ceil(
+    (new Date(next.deadline).getTime() - now) / 3600000
+  );
+
+  $("reminder").textContent =
+    `Tugas berikutnya: ${next.title}, ${hours} jam lagi.`;
+}
+
+$("taskForm").addEventListener("submit", event => {
+  event.preventDefault();
+
+  const title = $("title").value.trim();
+  const subject = $("subject").value.trim();
+  const deadline = $("deadline").value;
+
+  if (!title || !subject || !deadline) return;
+
+  if (new Date(deadline).getTime() <= Date.now()) {
+    alert("Pilih deadline pada waktu yang akan datang.");
+    return;
+  }
+
+  tasks.push({
+    id: Date.now().toString() + Math.random().toString(16).slice(2),
+    title,
+    subject,
+    deadline: new Date(deadline).toISOString(),
+    done: false,
+    notified: false
+  });
+
+  save();
+  event.target.reset();
+  render();
+});
+
+$("notifyBtn").addEventListener("click", async () => {
+  if (!("Notification" in window)) {
+    alert("Browser ini tidak mendukung notifikasi.");
+    return;
+  }
+
+  if (Notification.permission === "granted") {
+    new Notification("MyTask 🌷", {
+      body: "Notifikasi aktif. Jangan lupa periksa tugasmu!"
+    });
+    return;
+  }
+
+  if (Notification.permission === "denied") {
+    alert("Notifikasi diblokir. Periksa izin situs di pengaturan browser.");
+    return;
+  }
+
+  try {
+    const result = await Notification.requestPermission();
+    if (result === "granted") {
+      new Notification("MyTask 🌷", {
+        body: "Notifikasi berhasil diaktifkan!"
+      });
+    } else {
+      alert("Izin notifikasi belum diberikan.");
+    }
+  } catch {
+    alert("Notifikasi tidak tersedia di tampilan ini. Coba buka website melalui alamat HTTPS.");
+  }
+});
+
+// Periksa deadline setiap 30 detik selama halaman terbuka.
+function checkDeadlines() {
+  const now = Date.now();
+  let changed = false;
+
+  tasks.forEach(task => {
+    const due = new Date(task.deadline).getTime();
+    const remaining = due - now;
+
+    if (!task.done && !task.notified &&
+        remaining > 0 && remaining <= 3600000) {
+      if ("Notification" in window &&
+          Notification.permission === "granted") {
+        new Notification("Pengingat tugas MyTask 🌷", {
+          body: task.title + " (" + task.subject +
+            ") akan dikumpulkan dalam waktu 1 jam."
+        });
+      }
+
+      task.notified = true;
+      changed = true;
+    }
+  });
+
+  if (changed) save();
+  render();
+}
+
+render();
+checkDeadlines();
+setInterval(checkDeadlines, 30000);
+</script>
+</body>
+</html>
